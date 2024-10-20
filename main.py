@@ -1,10 +1,31 @@
 import math
+import hashlib
+import firebase_admin
+from firebase_admin import credentials, firestore
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from bs4 import BeautifulSoup
 import time
+from datetime import datetime
+import pytz
+
+# Category for database:
+category = "Malediven"
+
+maxBudget = "5000"
+departureDate = "2024-12-01"
+returnDate = "2025-01-31"
+days = "1w"
+
+base_url = f"https://urlaub.check24.de/suche/hotel?adult=2&airport=VIE&areaId=1079&areaSort=topregion&budgetMax={maxBudget}x&cateringList=allinclusive%2CallinclusivePlus&days={days}&departureDate={departureDate}&directFlight=1&ds=r&extendedSearch=1&hotelCategoryList=4%2C5&offerSort=default&pageArea=package&rating=8&returnDate={returnDate}&roomAllocation=A-A&roomCount=1&sorting=price&transfer=transfer&transportType=flight"
+
+
+# Initialize Firebase Admin SDK
+cred = credentials.Certificate('all-in-go-62f37-firebase-adminsdk-2o1p8-ab647632fe.json')
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 
 
 def accept_cookies(driver_cookies):
@@ -19,13 +40,17 @@ def accept_cookies(driver_cookies):
         print("Cookie consent button not found or already accepted")
 
 
+# Function to generate a unique ID for a hotel
+def generate_hotel_id(nameId, locationId):
+    unique_string = f"{nameId.lower().strip()}_{locationId.lower().strip()}"
+    return hashlib.md5(unique_string.encode()).hexdigest()
+
+
 # WebDriver for Chrome setup
 driver = webdriver.Chrome()
 
-# Base URL of the page you want to scrape (with a placeholder for the page number)
-base_url = "https://urlaub.check24.de/suche/hotel?adult=2&airport=VIE&areaId=1079&areaSort=topregion&cateringList=allinclusive%2CallinclusivePlus&days=1w&departureDate=2024-12-01&directFlight=1&ds=r&extendedSearch=1&hotelCategoryList=4%2C5&offerSort=default&page={}&pageArea=package&rating=8&returnDate=2025-01-31&roomAllocation=A-A&roomCount=1&sorting=price&transfer=transfer&transportType=flight"
 
-all_hotel_data = []
+local_tz = pytz.timezone('Europe/Vienna')
 
 # Initialize the page number
 current_page = 1
@@ -71,8 +96,8 @@ while True:
             maxIndex = math.ceil(total_results / 25)  # Calculate maxIndex based on total results
             print(f"Total results: {total_results}, Max pages: {maxIndex}")
         else:
-            print("Pagination div not found.")
-            break  # Exit if no pagination found
+            print("Pagination div not found. Continuing to scrape current page...")
+            maxIndex = current_page
 
         # Find all hotel listings on the current page
         all_hotels = soup.find_all("div", class_='_Item_6cmnh_113')
@@ -99,29 +124,35 @@ while True:
                 image = image_tag.find('img')
                 img_url = image['src'] if image else 'No image found'
 
+            # Generate a unique ID for the hotel
+            hotel_id = generate_hotel_id(name, location)
+
+            # Check if the hotel already exists in Firestore
+            hotel_ref = db.collection('hotels').document(hotel_id)
+            existing_hotel_data = hotel_ref.get()
+
             # Collect the extracted information into a dictionary
             hotel_data = {
-                'Name': name,
-                'Rating': rating,
-                'Rating Count': rating_count,
-                'Price': price,
-                'Discount': discount,
-                'Location': location,
-                'Image': img_url,
-                'Link': href,
+                'name': name,
+                'category': category,
+                'rating': rating,
+                'ratingCount': rating_count,
+                'price': price,
+                'discount': discount,
+                'location': location,
+                'image': img_url,
+                'link': href,
+                'lastUpdate': datetime.now(local_tz).strftime("%d-%m-%Y %H:%M:%S")  # Add last_update field with local time
             }
-            all_hotel_data.append(hotel_data)
 
-            # Optionally, print the extracted information
-            print(f'Name: {name}')
-            print(f'Rating: {rating}')
-            print(f'Rating count: {rating_count}')
-            print(f'Price: {price}')
-            print(f'Discount: {discount}')
-            print(f'Location: {location}')
-            print(f'Image: {img_url}')
-            print(f'Link: {href}')
-            print('---')
+            if existing_hotel_data.exists:
+                # If hotel exists, update the data
+                hotel_ref.set(hotel_data)  # Update with new data
+                print(f'Updated hotel: {name} in Firestore')
+            else:
+                # Add new hotel data if it doesn't exist
+                hotel_ref.set(hotel_data)
+                print(f'Added hotel: {name} to Firestore')
 
         # Break the loop if the current page exceeds maxIndex
         if current_page >= maxIndex:
