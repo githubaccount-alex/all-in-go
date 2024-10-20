@@ -12,14 +12,15 @@ from datetime import datetime
 import pytz
 
 # Category for database:
-category = "Malediven"
+category = "egypt"
 
-maxBudget = "5000"
+maxBudget = "4000"
 departureDate = "2024-12-01"
 returnDate = "2025-01-31"
 days = "1w"
 
-base_url = f"https://urlaub.check24.de/suche/hotel?adult=2&airport=VIE&areaId=1079&areaSort=topregion&budgetMax={maxBudget}x&cateringList=allinclusive%2CallinclusivePlus&days={days}&departureDate={departureDate}&directFlight=1&ds=r&extendedSearch=1&hotelCategoryList=4%2C5&offerSort=default&pageArea=package&rating=8&returnDate={returnDate}&roomAllocation=A-A&roomCount=1&sorting=price&transfer=transfer&transportType=flight"
+#base_url = f"https://urlaub.check24.de/suche/hotel?adult=2&airport=VIE&areaId=1079&page={{}}&areaSort=topregion&budgetMax={maxBudget}x&cateringList=allinclusive%2CallinclusivePlus&days={days}&departureDate={departureDate}&directFlight=1&ds=r&extendedSearch=1&hotelCategoryList=4%2C5&offerSort=default&pageArea=package&rating=8&returnDate={returnDate}&roomAllocation=A-A&roomCount=1&sorting=price&transfer=transfer&transportType=flight"
+base_url = f"https://urlaub.check24.de/suche/hotel?adult=2&airport=VIE&countryId=11&page={{}}&areaSort=topregion&budgetMax={maxBudget}x&cateringList=allinclusive%2CallinclusivePlus&days={days}&departureDate={departureDate}&directFlight=1&ds=r&extendedSearch=1&hotelCategoryList=4%2C5&offerSort=default&pageArea=package&rating=8&returnDate={returnDate}&roomAllocation=A-A&roomCount=1&sorting=price&transfer=transfer&transportType=flight"
 
 
 # Initialize Firebase Admin SDK
@@ -128,7 +129,7 @@ while True:
             hotel_id = generate_hotel_id(name, location)
 
             # Check if the hotel already exists in Firestore
-            hotel_ref = db.collection('hotels').document(hotel_id)
+            hotel_ref = db.collection('places').document(category).collection('hotels').document(hotel_id)
             existing_hotel_data = hotel_ref.get()
 
             # Collect the extracted information into a dictionary
